@@ -13,7 +13,7 @@ You may also be interested in a Python equivalent,
 
 # Installation
 
-Once you have [installed Go](https://golang.org/doc/install) 1.10+ you can
+Once you have [installed Go](https://golang.org/doc/install) 1.15+ you can
 install `goacmedns` with `go get`:
 
      go get github.com/cpu/goacmedns/...
