@@ -146,3 +146,30 @@ func TestFileStorageFetch(t *testing.T) {
 		t.Errorf("expected ErrDomainNotFound for Fetch of non-existent domain, got %v", err)
 	}
 }
+
+func TestFileStorageFetchAll(t *testing.T) {
+	storage := NewFileStorage("", 0)
+
+	for d, acct := range testAccounts {
+		err := storage.Put(d, acct)
+		if err != nil {
+			t.Errorf("unexpected error adding account %#v to storage: %v", acct, err)
+		}
+	}
+
+	allaccounts := storage.FetchAll()
+	if len(allaccounts) != len(testAccounts) {
+		t.Errorf("the size of fetched accounts map: %d does not match the expected: %d",
+			len(allaccounts), len(testAccounts))
+	}
+
+	for d, expected := range testAccounts {
+		if acct, found := allaccounts[d]; !found {
+			t.Errorf("account for domain %q was not found from the fetched data", d)
+		} else {
+			if !reflect.DeepEqual(acct, expected) {
+				t.Errorf("expected domain %q to have account %#v, had %#v\n", d, expected, acct)
+			}
+		}
+	}
+}
