@@ -20,7 +20,7 @@ type Storage interface {
 	// the provided domain does not have an `Account` saved in the storage
 	// `ErrDomainNotFound` will be returned
 	Fetch(string) (Account, error)
-	// FetchAll retrieves all the `Account` objects from the fileStorage and
+	// FetchAll retrieves all the `Account` objects from the storage and
 	// returns a map that has domain names as its keys and `Account` objects
 	// as values.
 	FetchAll() map[string]Account
