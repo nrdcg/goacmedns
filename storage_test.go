@@ -92,8 +92,11 @@ func TestNewFileStorage(t *testing.T) {
 
 func TestNewFileStorageWithLegacyData(t *testing.T) {
 	mode := os.FileMode(0600)
-	var legacyAcct, testAcct Account
-	var found bool
+
+	var (
+		legacyAcct, testAcct Account
+		found                bool
+	)
 
 	testData, err := json.Marshal(testLegacyAccount)
 	if err != nil {
