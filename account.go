@@ -8,4 +8,5 @@ type Account struct {
 	SubDomain  string `json:"subdomain"`
 	Username   string `json:"username"`
 	Password   string `json:"password"`
+	Server     string `json:"server"`
 }
