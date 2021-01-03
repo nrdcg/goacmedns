@@ -92,6 +92,9 @@ func TestNewFileStorage(t *testing.T) {
 
 func TestNewFileStorageWithLegacyData(t *testing.T) {
 	mode := os.FileMode(0600)
+	var legacyAcct, testAcct Account
+	var found bool
+
 	testData, err := json.Marshal(testLegacyAccount)
 	if err != nil {
 		t.Fatalf("unexpected error marshaling testAccounts: %v", err)
@@ -124,22 +127,23 @@ func TestNewFileStorageWithLegacyData(t *testing.T) {
 		t.Fatalf("expected a single account in the map, got %d", len(fs.accounts))
 	}
 
-	if legacyAcct, found := fs.accounts["threeletter.agency"]; !found {
+	if legacyAcct, found = fs.accounts["threeletter.agency"]; !found {
 		t.Fatalf("expected to find account but was unable to")
-	} else {
-		if legacyAcct.Server != "" {
-			t.Errorf("expected empty Server string from legacy account, but got %s", legacyAcct.Server)
-		} else {
-			if testAcct, found := testAccounts["threeletter.agency"]; !found {
-				t.Errorf("expected to find test account for threeletter.agency, but was unable to")
-			} else {
-				// set the missing value for legacy account to be able to evaluate equivelance
-				legacyAcct.Server = testAcct.Server
-				if !reflect.DeepEqual(legacyAcct, testAcct) {
-					t.Errorf("expected equivelant test and legacy accounts")
-				}
-			}
-		}
+	}
+
+	if legacyAcct.Server != "" {
+		t.Errorf("expected empty Server string from legacy account, but got %s", legacyAcct.Server)
+	}
+
+	if testAcct, found = testAccounts["threeletter.agency"]; !found {
+		t.Fatalf("expected to find test account for threeletter.agency, but was unable to")
+	}
+
+	// set the missing value for legacy account to be able to evaluate equivalence
+	legacyAcct.Server = testAcct.Server
+
+	if !reflect.DeepEqual(legacyAcct, testAcct) {
+		t.Errorf("expected equivalent test and legacy accounts")
 	}
 }
 
