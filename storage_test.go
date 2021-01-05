@@ -15,14 +15,14 @@ var testAccounts = map[string]Account{
 		SubDomain:  "tossed.lettuceencrypt.org",
 		Username:   "cpu",
 		Password:   "hunter2",
-		Server:     "https://auth.acme-dns.io",
+		ServerURL:  "https://auth.acme-dns.io",
 	},
 	"threeletter.agency": {
 		FullDomain: "threeletter.agency",
 		SubDomain:  "jobs.threeletter.agency",
 		Username:   "spooky.mulder",
 		Password:   "trustno1",
-		Server:     "https://example.org",
+		ServerURL:  "https://example.org",
 	},
 }
 
@@ -134,8 +134,8 @@ func TestNewFileStorageWithLegacyData(t *testing.T) {
 		t.Fatalf("expected to find account but was unable to")
 	}
 
-	if legacyAcct.Server != "" {
-		t.Errorf("expected empty Server string from legacy account, but got %s", legacyAcct.Server)
+	if legacyAcct.ServerURL != "" {
+		t.Errorf("expected empty Server string from legacy account, but got %s", legacyAcct.ServerURL)
 	}
 
 	if testAcct, found = testAccounts["threeletter.agency"]; !found {
@@ -143,7 +143,7 @@ func TestNewFileStorageWithLegacyData(t *testing.T) {
 	}
 
 	// set the missing value for legacy account to be able to evaluate equivalence
-	legacyAcct.Server = testAcct.Server
+	legacyAcct.ServerURL = testAcct.ServerURL
 
 	if !reflect.DeepEqual(legacyAcct, testAcct) {
 		t.Errorf("expected equivalent test and legacy accounts")

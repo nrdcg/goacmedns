@@ -117,7 +117,7 @@ func TestRegisterAccount(t *testing.T) {
 				}
 			} else if tc.ExpectedErr == nil && err == nil {
 				// Needed to be able to assert equivalence, as the server addr is dynamic
-				tc.ExpectedAccount.Server = acct.Server
+				tc.ExpectedAccount.ServerURL = acct.ServerURL
 				if !reflect.DeepEqual(acct, *tc.ExpectedAccount) {
 					t.Errorf("expected account %v, got %v\n", tc.ExpectedAccount, acct)
 				}

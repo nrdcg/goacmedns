@@ -167,7 +167,7 @@ func (c Client) RegisterAccount(allowFrom []string) (Account, error) {
 		return Account{}, fmt.Errorf("Failed to unmarshal account: %w", err)
 	}
 
-	acct.Server = c.baseURL
+	acct.ServerURL = c.baseURL
 
 	return acct, nil
 }
