@@ -16,10 +16,8 @@ import (
 // defaultTimeout is used for the httpClient Timeout settings.
 const defaultTimeout = 30 * time.Second
 
-const (
-	// ua is a custom user-agent identifier.
-	ua = "goacmedns"
-)
+// ua is a custom user-agent identifier.
+const ua = "goacmedns"
 
 // userAgent returns a string that can be used as a HTTP request `User-Agent`
 // header. It includes the `ua` string alongside the OS and architecture of the
@@ -55,18 +53,28 @@ type Storage interface {
 	FetchAll(ctx context.Context) map[string]Account
 }
 
+type Option func(c *Client)
+
+func WithHTTPClient(client *http.Client) Option {
+	return func(c *Client) {
+		if c != nil {
+			c.httpClient = client
+		}
+	}
+}
+
 type Client struct {
 	httpClient *http.Client
 	baseURL    *url.URL
 }
 
-func NewClient(baseURL string) (*Client, error) {
+func NewClient(baseURL string, opts ...Option) (*Client, error) {
 	endpoint, err := url.Parse(baseURL)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse base URL: %w", err)
 	}
 
-	return &Client{
+	client := &Client{
 		httpClient: &http.Client{
 			CheckRedirect: nil,
 			Jar:           nil,
@@ -83,7 +91,13 @@ func NewClient(baseURL string) (*Client, error) {
 			},
 		},
 		baseURL: endpoint,
-	}, nil
+	}
+
+	for _, opt := range opts {
+		opt(client)
+	}
+
+	return client, nil
 }
 
 func (c *Client) RegisterAccount(ctx context.Context, allowFrom []string) (Account, error) {
