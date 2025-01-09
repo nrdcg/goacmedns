@@ -10,6 +10,8 @@ import (
 	"github.com/nrdcg/goacmedns"
 )
 
+var _ goacmedns.Storage = (*File)(nil)
+
 // ErrDomainNotFound is returned from `Fetch` when the provided domain is not
 // present in the storage.
 var ErrDomainNotFound = errors.New("requested domain is not present in storage")
