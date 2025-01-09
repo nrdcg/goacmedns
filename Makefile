@@ -12,4 +12,4 @@ check:
 	golangci-lint run
 
 build:
-	go build -ldflags "-s -w" -trimpath ./cmd/goacmedns-register/
+	go build -ldflags "-s -w" -trimpath ./cmd/goacmedns/
