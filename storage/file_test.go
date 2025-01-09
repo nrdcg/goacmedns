@@ -1,15 +1,17 @@
-package goacmedns //nolint:testpackage
+package storage
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"os"
 	"reflect"
 	"testing"
+
+	"github.com/nrdcg/goacmedns"
 )
 
-var testAccounts = map[string]Account{
+var testAccounts = map[string]goacmedns.Account{
 	"lettuceencrypt.org": {
 		FullDomain: "lettuceencrypt.org",
 		SubDomain:  "tossed.lettuceencrypt.org",
@@ -26,7 +28,7 @@ var testAccounts = map[string]Account{
 	},
 }
 
-var testLegacyAccount = map[string]Account{
+var testLegacyAccount = map[string]goacmedns.Account{
 	"threeletter.agency": {
 		FullDomain: "threeletter.agency",
 		SubDomain:  "jobs.threeletter.agency",
@@ -37,13 +39,8 @@ var testLegacyAccount = map[string]Account{
 
 func TestNewFileStorage(t *testing.T) {
 	path := "foo.json"
-	mode := os.FileMode(0600)
-	storage := NewFileStorage(path, mode)
-
-	fs, ok := storage.(fileStorage)
-	if !ok {
-		t.Fatalf("expected fileStorage instance from NewFileStorage, got %T", storage)
-	}
+	mode := os.FileMode(0o600)
+	fs := NewFile(path, mode)
 
 	if fs.path != path {
 		t.Errorf("expected fs.path = %q, got %q", path, fs.path)
@@ -62,7 +59,7 @@ func TestNewFileStorage(t *testing.T) {
 		t.Fatalf("unexpected error marshaling testAccounts: %v", err)
 	}
 
-	f, err := ioutil.TempFile("", "acmedns.account")
+	f, err := os.CreateTemp(t.TempDir(), "acmedns.account")
 	if err != nil {
 		t.Errorf("unexpected error creating tempfile: %v", err)
 	}
@@ -74,12 +71,7 @@ func TestNewFileStorage(t *testing.T) {
 		t.Errorf("unexpected error writing to tempfile: %v", err)
 	}
 
-	storage = NewFileStorage(f.Name(), mode)
-
-	fs, ok = storage.(fileStorage)
-	if !ok {
-		t.Fatalf("expected fileStorage instance from NewFileStorage, got %T", storage)
-	}
+	fs = NewFile(f.Name(), mode)
 
 	if fs.accounts == nil {
 		t.Fatalf("expected accounts to be not-nil, was nil")
@@ -91,10 +83,10 @@ func TestNewFileStorage(t *testing.T) {
 }
 
 func TestNewFileStorageWithLegacyData(t *testing.T) {
-	mode := os.FileMode(0600)
+	mode := os.FileMode(0o600)
 
 	var (
-		legacyAcct, testAcct Account
+		legacyAcct, testAcct goacmedns.Account
 		found                bool
 	)
 
@@ -103,7 +95,7 @@ func TestNewFileStorageWithLegacyData(t *testing.T) {
 		t.Fatalf("unexpected error marshaling testAccounts: %v", err)
 	}
 
-	f, err := ioutil.TempFile("", "legacy.account")
+	f, err := os.CreateTemp(t.TempDir(), "legacy.account")
 	if err != nil {
 		t.Errorf("unexpected error creating tempfile: %v", err)
 	}
@@ -115,12 +107,7 @@ func TestNewFileStorageWithLegacyData(t *testing.T) {
 		t.Errorf("unexpected error writing to tempfile: %v", err)
 	}
 
-	storage := NewFileStorage(f.Name(), mode)
-
-	fs, ok := storage.(fileStorage)
-	if !ok {
-		t.Fatalf("expected fileStorage instance from NewFileStorage, got %T", storage)
-	}
+	fs := NewFile(f.Name(), mode)
 
 	if fs.accounts == nil {
 		t.Fatalf("expected accounts to be not-nil, was nil")
@@ -151,7 +138,9 @@ func TestNewFileStorageWithLegacyData(t *testing.T) {
 }
 
 func TestFileStorageSave(t *testing.T) {
-	f, err := ioutil.TempFile("", "acmedns.account")
+	ctx := context.Background()
+
+	f, err := os.CreateTemp(t.TempDir(), "acmedns.account")
 
 	defer func() { _ = f.Close() }()
 
@@ -159,26 +148,26 @@ func TestFileStorageSave(t *testing.T) {
 		t.Fatalf("Unable to create tempfile: %v", err)
 	}
 
-	storage := NewFileStorage(f.Name(), 0600)
+	storage := NewFile(f.Name(), 0o600)
 
 	for d, acct := range testAccounts {
-		err := storage.Put(d, acct)
+		err := storage.Put(ctx, d, acct)
 		if err != nil {
 			t.Errorf("unexpected error adding account %#v to storage: %v", acct, err)
 		}
 	}
 
-	err = storage.Save()
+	err = storage.Save(ctx)
 	if err != nil {
 		t.Fatalf("unexpected error saving storage: %v", err)
 	}
 
-	storedJSON, err := ioutil.ReadFile(f.Name())
+	storedJSON, err := os.ReadFile(f.Name())
 	if err != nil {
 		t.Fatalf("unexpected error reading stored JSON from %q: %v", f.Name(), err)
 	}
 
-	var restoredData map[string]Account
+	var restoredData map[string]goacmedns.Account
 
 	err = json.Unmarshal(storedJSON, &restoredData)
 	if err != nil {
@@ -192,17 +181,19 @@ func TestFileStorageSave(t *testing.T) {
 }
 
 func TestFileStorageFetch(t *testing.T) {
-	storage := NewFileStorage("", 0)
+	ctx := context.Background()
+
+	storage := NewFile("", 0)
 
 	for d, acct := range testAccounts {
-		err := storage.Put(d, acct)
+		err := storage.Put(ctx, d, acct)
 		if err != nil {
 			t.Errorf("unexpected error adding account %#v to storage: %v", acct, err)
 		}
 	}
 
 	for d, expected := range testAccounts {
-		acct, err := storage.Fetch(d)
+		acct, err := storage.Fetch(ctx, d)
 		if err != nil {
 			t.Errorf("unexpected error fetching domain %q from storage: %v", d, err)
 		}
@@ -212,35 +203,39 @@ func TestFileStorageFetch(t *testing.T) {
 		}
 	}
 
-	_, err := storage.Fetch("doesnt-exist.example.org")
+	_, err := storage.Fetch(ctx, "doesnt-exist.example.org")
 	if !errors.Is(err, ErrDomainNotFound) {
 		t.Errorf("expected ErrDomainNotFound for Fetch of non-existent domain, got %v", err)
 	}
 }
 
 func TestFileStorageFetchAll(t *testing.T) {
-	storage := NewFileStorage("", 0)
+	ctx := context.Background()
+
+	storage := NewFile("", 0)
 
 	for d, acct := range testAccounts {
-		err := storage.Put(d, acct)
+		err := storage.Put(ctx, d, acct)
 		if err != nil {
 			t.Errorf("unexpected error adding account %#v to storage: %v", acct, err)
 		}
 	}
 
-	allaccounts := storage.FetchAll()
-	if len(allaccounts) != len(testAccounts) {
+	allAccounts, err := storage.FetchAll(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(allAccounts) != len(testAccounts) {
 		t.Errorf("the size of fetched accounts map: %d does not match the expected: %d",
-			len(allaccounts), len(testAccounts))
+			len(allAccounts), len(testAccounts))
 	}
 
 	for d, expected := range testAccounts {
-		if acct, found := allaccounts[d]; !found {
+		if acct, found := allAccounts[d]; !found {
 			t.Errorf("account for domain %q was not found from the fetched data", d)
-		} else {
-			if !reflect.DeepEqual(acct, expected) {
-				t.Errorf("expected domain %q to have account %#v, had %#v\n", d, expected, acct)
-			}
+		} else if !reflect.DeepEqual(acct, expected) {
+			t.Errorf("expected domain %q to have account %#v, had %#v\n", d, expected, acct)
 		}
 	}
 }

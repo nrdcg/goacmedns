@@ -5,12 +5,16 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"runtime"
 	"time"
 )
+
+// defaultTimeout is used for the httpClient Timeout settings.
+const defaultTimeout = 30 * time.Second
 
 const (
 	// ua is a custom user-agent identifier.
@@ -24,168 +28,91 @@ func userAgent() string {
 	return fmt.Sprintf("%s (%s; %s)", ua, runtime.GOOS, runtime.GOARCH)
 }
 
-var (
-	// defaultTimeout is used for the httpClient Timeout settings.
-	defaultTimeout = 30 * time.Second
-	// httpClient is a `http.Client` that is customized with the `defaultTimeout`.
-	httpClient = http.Client{
-		CheckRedirect: nil,
-		Jar:           nil,
-		Timeout:       defaultTimeout,
-		Transport: &http.Transport{ //nolint:exhaustivestruct
-			Proxy: http.ProxyFromEnvironment,
-			Dial: (&net.Dialer{ //nolint:exhaustivestruct
-				Timeout:   defaultTimeout,
-				KeepAlive: defaultTimeout,
-			}).Dial,
-			TLSHandshakeTimeout:   defaultTimeout,
-			ResponseHeaderTimeout: defaultTimeout,
-			ExpectContinueTimeout: 1 * time.Second,
-		},
-	}
-)
-
-// postAPI makes an HTTP POST request to the given URL, sending the given body
-// and attaching the requested custom headers to the request. If there is no
-// error the HTTP response body and HTTP response object are returned, otherwise
-// an error is returned.. All POST requests include a `User-Agent` header
-// populated with the `userAgent` function and a `Content-Type` header of
-// `application/json`.
-func postAPI(url string, body []byte, headers map[string]string) ([]byte, *http.Response, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(body))
-	if err != nil {
-		return nil, nil, fmt.Errorf("Failed to make req: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", userAgent())
-
-	for h, v := range headers {
-		req.Header.Set(h, v)
-	}
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, resp, fmt.Errorf("Failed to do req: %w", err)
-	}
-
-	defer func() { _ = resp.Body.Close() }()
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, resp, fmt.Errorf("Failed to read body: %w", err)
-	}
-
-	return respBody, resp, nil
+type Register struct {
+	AllowFrom []string `json:"allowfrom"`
 }
 
-// ClientError represents an error from the ACME-DNS server. It holds
-// a `Message` describing the operation the client was doing, a `HTTPStatus`
-// code returned by the server, and the `Body` of the HTTP Response from the
-// server.
-type ClientError struct {
-	// Message is a string describing the client operation that failed
-	Message string
-	// HTTPStatus is the HTTP status code the ACME DNS server returned
-	HTTPStatus int
-	// Body is the response body the ACME DNS server returned
-	Body []byte
+type Update struct {
+	SubDomain string `json:"subdomain"`
+	Txt       string `json:"txt"`
 }
 
-// Error collects all of the ClientError fields into a single string.
-func (e ClientError) Error() string {
-	return fmt.Sprintf("%s : status code %d response: %s",
-		e.Message, e.HTTPStatus, string(e.Body))
+// Storage is an interface describing the required functions for an ACME DNS
+// Account storage mechanism.
+type Storage interface {
+	// Save will persist the `Account` data that has been `Put` so far
+	Save(ctx context.Context) error
+	// Put will add an `Account` for the given domain to the storage. It may not
+	// be persisted until `Save` is called.
+	Put(ctx context.Context, domain string, account Account) error
+	// Fetch will retrieve an `Account` for the given domain from the storage. If
+	// the provided domain does not have an `Account` saved in the storage
+	// `ErrDomainNotFound` will be returned
+	Fetch(ctx context.Context, domain string) (Account, error)
+	// FetchAll retrieves all the `Account` objects from the storage and
+	// returns a map that has domain names as its keys and `Account` objects
+	// as values.
+	FetchAll(ctx context.Context) map[string]Account
 }
 
-// newClientError creates a ClientError instance populated with the given
-// arguments.
-func newClientError(msg string, respCode int, respBody []byte) ClientError {
-	return ClientError{
-		Message:    msg,
-		HTTPStatus: respCode,
-		Body:       respBody,
-	}
-}
-
-// Client is a struct that can be used to interact with an ACME DNS server to
-// register accounts and update TXT records.
 type Client struct {
-	// baseURL is the address of the ACME DNS server
-	baseURL string
+	httpClient *http.Client
+	baseURL    *url.URL
 }
 
-// NewClient returns a Client configured to interact with the ACME DNS server at
-// the given URL.
-func NewClient(url string) Client {
-	return Client{
-		baseURL: url,
+func NewClient(baseURL string) (*Client, error) {
+	endpoint, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse base URL: %w", err)
 	}
+
+	return &Client{
+		httpClient: &http.Client{
+			CheckRedirect: nil,
+			Jar:           nil,
+			Timeout:       defaultTimeout,
+			Transport: &http.Transport{
+				Proxy: http.ProxyFromEnvironment,
+				DialContext: (&net.Dialer{
+					Timeout:   defaultTimeout,
+					KeepAlive: defaultTimeout,
+				}).DialContext,
+				TLSHandshakeTimeout:   defaultTimeout,
+				ResponseHeaderTimeout: defaultTimeout,
+				ExpectContinueTimeout: 1 * time.Second,
+			},
+		},
+		baseURL: endpoint,
+	}, nil
 }
 
-// RegisterAccount creates an Account with the ACME DNS server. The optional
-// `allowFrom` argument is used to constrain which CIDR ranges can use the
-// created Account.
-func (c Client) RegisterAccount(allowFrom []string) (Account, error) {
-	var body []byte
-
+func (c *Client) RegisterAccount(ctx context.Context, allowFrom []string) (Account, error) {
+	var register *Register
 	if len(allowFrom) > 0 {
-		req := struct {
-			AllowFrom []string
-		}{
-			AllowFrom: allowFrom,
-		}
-
-		reqBody, err := json.Marshal(req)
-		if err != nil {
-			return Account{}, fmt.Errorf("Failed to marshal account: %w", err)
-		}
-
-		body = reqBody
+		register = &Register{AllowFrom: allowFrom}
 	}
 
-	url := fmt.Sprintf("%s/register", c.baseURL)
-
-	// golangci-lint doesn't know it but postAPI() defers a body close.
-	respBody, resp, err := postAPI(url, body, nil) //nolint:bodyclose
+	req, err := newRequest(ctx, c.baseURL.JoinPath("register"), nil, register)
 	if err != nil {
 		return Account{}, err
 	}
 
-	if resp.StatusCode != http.StatusCreated {
-		return Account{}, newClientError(
-			"failed to register account", resp.StatusCode, respBody)
-	}
-
 	var acct Account
 
-	err = json.Unmarshal(respBody, &acct)
+	err = c.do(req, &acct)
 	if err != nil {
-		return Account{}, fmt.Errorf("Failed to unmarshal account: %w", err)
+		return Account{}, fmt.Errorf("failed to register account: %w", err)
 	}
 
-	acct.ServerURL = c.baseURL
+	acct.ServerURL = c.baseURL.String()
 
 	return acct, nil
 }
 
-// UpdateTXTRecord updates a TXT record with the ACME DNS server to the `value`
-// provided using the `account` specified.
-func (c Client) UpdateTXTRecord(account Account, value string) error {
-	update := struct {
-		SubDomain string
-		Txt       string
-	}{
+func (c *Client) UpdateTXTRecord(ctx context.Context, account Account, value string) error {
+	update := &Update{
 		SubDomain: account.SubDomain,
 		Txt:       value,
-	}
-
-	updateBody, err := json.Marshal(update)
-	if err != nil {
-		return fmt.Errorf("Failed to marshal update: %w", err)
 	}
 
 	headers := map[string]string{
@@ -193,18 +120,75 @@ func (c Client) UpdateTXTRecord(account Account, value string) error {
 		"X-Api-Key":  account.Password,
 	}
 
-	url := fmt.Sprintf("%s/update", c.baseURL)
-
-	// golangci-lint doesn't know it but postAPI() defers a body close.
-	respBody, resp, err := postAPI(url, updateBody, headers) //nolint:bodyclose
+	req, err := newRequest(ctx, c.baseURL.JoinPath("update"), headers, update)
 	if err != nil {
 		return err
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return newClientError(
-			"failed to update txt record", resp.StatusCode, respBody)
+	err = c.do(req, nil)
+	if err != nil {
+		return fmt.Errorf("failed to update TXT record: %w", err)
 	}
 
 	return nil
+}
+
+func (c *Client) do(req *http.Request, result any) error {
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to do req: %w", err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode/100 != 2 {
+		raw, _ := io.ReadAll(resp.Body)
+
+		return newClientError("response error", resp.StatusCode, raw)
+	}
+
+	if result == nil {
+		return nil
+	}
+
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read body: %w", err)
+	}
+
+	err = json.Unmarshal(raw, result)
+	if err != nil {
+		return newClientError("failed to unmarshal response", resp.StatusCode, raw)
+	}
+
+	return nil
+}
+
+func newRequest(ctx context.Context, endpoint *url.URL, headers map[string]string, payload any) (*http.Request, error) {
+	buf := new(bytes.Buffer)
+
+	if payload != nil {
+		err := json.NewEncoder(buf).Encode(payload)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request JSON body: %w", err)
+		}
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), buf)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create request: %w", err)
+	}
+
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", userAgent())
+
+	for h, v := range headers {
+		req.Header.Set(h, v)
+	}
+
+	if payload != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	return req, nil
 }

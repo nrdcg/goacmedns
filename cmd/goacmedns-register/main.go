@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/nrdcg/goacmedns"
+	"github.com/nrdcg/goacmedns/storage"
 )
 
 func main() {
@@ -32,27 +36,44 @@ func main() {
 		allowedNetworks = strings.Split(*allowFrom, ",")
 	}
 
-	client := goacmedns.NewClient(*apiBase)
-	storage := goacmedns.NewFileStorage(*storagePath, 0600)
-
-	newAcct, err := client.RegisterAccount(allowedNetworks)
+	err := run(*apiBase, *domain, *storagePath, allowedNetworks)
 	if err != nil {
 		log.Fatal(err)
 	}
-	// Save it
-	err = storage.Put(*domain, newAcct)
+}
+
+func run(apiBase, domain, storagePath string, allowedNetworks []string) error {
+	client, err := goacmedns.NewClient(apiBase)
 	if err != nil {
-		log.Fatalf("Failed to put account in storage: %v", err)
+		return fmt.Errorf("could not create goacmedns client: %w", err)
 	}
 
-	err = storage.Save()
+	st := storage.NewFile(storagePath, 0o600)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+
+	newAcct, err := client.RegisterAccount(ctx, allowedNetworks)
 	if err != nil {
-		log.Fatalf("Failed to save storage: %v", err)
+		return fmt.Errorf("failed to register account: %w", err)
+	}
+
+	// Save it
+	err = st.Put(ctx, domain, newAcct)
+	if err != nil {
+		return fmt.Errorf("failed to put account in storage: %w", err)
+	}
+
+	err = st.Save(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to save storage: %w", err)
 	}
 
 	log.Printf(
 		"new account created for %q. "+
 			"To complete setup for %q you must provision the following CNAME in your DNS zone:\n"+
 			"%s CNAME %s.\n",
-		*domain, *domain, "_acme-challenge."+*domain, newAcct.FullDomain)
+		domain, domain, "_acme-challenge."+domain, newAcct.FullDomain)
+
+	return nil
 }

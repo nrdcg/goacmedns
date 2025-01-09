@@ -1,6 +1,7 @@
-package goacmedns //nolint:testpackage
+package goacmedns
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -19,12 +20,14 @@ var (
 	}
 )
 
-func errHandler(resp http.ResponseWriter, req *http.Request) {
+func errHandler(resp http.ResponseWriter, _ *http.Request) {
 	resp.WriteHeader(http.StatusBadRequest)
 	_, _ = resp.Write(errBody)
 }
 
 func newRegHandler(t *testing.T, expectedAllowFrom []string) func(http.ResponseWriter, *http.Request) {
+	t.Helper()
+
 	return func(resp http.ResponseWriter, req *http.Request) {
 		expectedCT := "application/json"
 		if ct := req.Header.Get("Content-Type"); ct != expectedCT {
@@ -38,9 +41,7 @@ func newRegHandler(t *testing.T, expectedAllowFrom []string) func(http.ResponseW
 		if len(expectedAllowFrom) > 0 {
 			decoder := json.NewDecoder(req.Body)
 
-			var regReq struct {
-				AllowFrom []string
-			}
+			var regReq Register
 
 			err := decoder.Decode(&regReq)
 			if err != nil {
@@ -59,7 +60,6 @@ func newRegHandler(t *testing.T, expectedAllowFrom []string) func(http.ResponseW
 	}
 }
 
-//nolint:funlen
 func TestRegisterAccount(t *testing.T) {
 	testAllowFrom := []string{"space", "earth"}
 
@@ -76,7 +76,7 @@ func TestRegisterAccount(t *testing.T) {
 			ExpectedErr: &ClientError{
 				HTTPStatus: http.StatusBadRequest,
 				Body:       errBody,
-				Message:    "failed to register account",
+				Message:    "response error",
 			},
 		},
 		{
@@ -93,31 +93,39 @@ func TestRegisterAccount(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		//nolint:nestif
 		t.Run(tc.Name, func(t *testing.T) {
-			mux := http.NewServeMux()
+			client, mux := setupTest(t)
 			mux.HandleFunc("/register", tc.RegisterHandler)
 
-			ts := httptest.NewServer(mux)
-			defer ts.Close()
-
-			client := NewClient(ts.URL)
-			acct, err := client.RegisterAccount(tc.AllowFrom)
+			acct, err := client.RegisterAccount(context.Background(), tc.AllowFrom)
 
 			if tc.ExpectedErr == nil && err != nil {
 				t.Errorf("expected no error, got %v", err)
-			} else if tc.ExpectedErr != nil && err == nil {
+
+				return
+			}
+
+			if tc.ExpectedErr != nil && err == nil {
 				t.Errorf("expected error %v, got nil", tc.ExpectedErr)
-			} else if tc.ExpectedErr != nil && err != nil {
-				var cErr ClientError
-				if ok := errors.As(err, &cErr); !ok {
-					t.Fatalf("expected ClientError from RegisterAccount. Got %v", err)
-				} else if !reflect.DeepEqual(cErr, *tc.ExpectedErr) {
-					t.Errorf("expected err %#v, got %#v\n", tc.ExpectedErr, err)
+
+				return
+			}
+
+			if tc.ExpectedErr != nil && err != nil {
+				var cErr *ClientError
+				if ok := errors.As(errors.Unwrap(err), &cErr); !ok {
+					t.Fatalf("expected ClientError from RegisterAccount. Got %T", errors.Unwrap(err))
+				} else if !reflect.DeepEqual(cErr, tc.ExpectedErr) {
+					t.Errorf("got %#v,\n expected err %#v", errors.Unwrap(err), tc.ExpectedErr)
 				}
-			} else if tc.ExpectedErr == nil && err == nil {
+
+				return
+			}
+
+			if tc.ExpectedErr == nil && err == nil {
 				// Needed to be able to assert equivalence, as the server addr is dynamic
 				tc.ExpectedAccount.ServerURL = acct.ServerURL
+
 				if !reflect.DeepEqual(acct, *tc.ExpectedAccount) {
 					t.Errorf("expected account %v, got %v\n", tc.ExpectedAccount, acct)
 				}
@@ -131,6 +139,8 @@ const (
 )
 
 func updateTXTHandler(t *testing.T) func(http.ResponseWriter, *http.Request) {
+	t.Helper()
+
 	return func(resp http.ResponseWriter, req *http.Request) {
 		expectedCT := "application/json"
 		if ct := req.Header.Get("Content-Type"); ct != expectedCT {
@@ -151,10 +161,7 @@ func updateTXTHandler(t *testing.T) func(http.ResponseWriter, *http.Request) {
 
 		decoder := json.NewDecoder(req.Body)
 
-		var updateReq struct {
-			SubDomain string
-			Txt       string
-		}
+		var updateReq Update
 
 		err := decoder.Decode(&updateReq)
 		if err != nil {
@@ -189,7 +196,7 @@ func TestUpdateTXTRecord(t *testing.T) {
 			ExpectedErr: &ClientError{
 				HTTPStatus: http.StatusBadRequest,
 				Body:       errBody,
-				Message:    "failed to update txt record",
+				Message:    "response error",
 			},
 		},
 		{
@@ -201,27 +208,39 @@ func TestUpdateTXTRecord(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.Name, func(t *testing.T) {
-			mux := http.NewServeMux()
+			client, mux := setupTest(t)
 			mux.HandleFunc("/update", tc.UpdateHandler)
 
-			ts := httptest.NewServer(mux)
-			defer ts.Close()
+			err := client.UpdateTXTRecord(context.Background(), testAcct, updateValue)
 
-			client := NewClient(ts.URL)
-			err := client.UpdateTXTRecord(testAcct, updateValue)
-
-			if tc.ExpectedErr == nil && err != nil {
+			switch {
+			case tc.ExpectedErr == nil && err != nil:
 				t.Errorf("expected no error, got %v", err)
-			} else if tc.ExpectedErr != nil && err == nil {
+
+			case tc.ExpectedErr != nil && err == nil:
 				t.Errorf("expected error %v, got nil", tc.ExpectedErr)
-			} else if tc.ExpectedErr != nil && err != nil {
-				var cErr ClientError
-				if ok := errors.As(err, &cErr); !ok {
-					t.Fatalf("expected ClientError from UpdateTXTRecord. Got %v", err)
-				} else if !reflect.DeepEqual(cErr, *tc.ExpectedErr) {
+
+			case tc.ExpectedErr != nil && err != nil:
+				var cErr *ClientError
+				if ok := errors.As(errors.Unwrap(err), &cErr); !ok {
+					t.Fatalf("expected ClientError from UpdateTXTRecord. Got %v", errors.Unwrap(err))
+				} else if !reflect.DeepEqual(cErr, tc.ExpectedErr) {
 					t.Errorf("expected err %#v, got %#v\n", tc.ExpectedErr, cErr)
 				}
 			}
 		})
 	}
+}
+
+func setupTest(t *testing.T) (*Client, *http.ServeMux) {
+	t.Helper()
+
+	mux := http.NewServeMux()
+
+	ts := httptest.NewServer(mux)
+	t.Cleanup(ts.Close)
+
+	client, _ := NewClient(ts.URL)
+
+	return client, mux
 }
