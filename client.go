@@ -50,7 +50,7 @@ type Storage interface {
 	// FetchAll retrieves all the `Account` objects from the storage and
 	// returns a map that has domain names as its keys and `Account` objects
 	// as values.
-	FetchAll(ctx context.Context) map[string]Account
+	FetchAll(ctx context.Context) (map[string]Account, error)
 }
 
 type Option func(c *Client)
