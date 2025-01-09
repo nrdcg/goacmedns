@@ -8,7 +8,7 @@ type Account struct {
 	Username   string `json:"username"`
 	Password   string `json:"password"`
 
-	// ServerURL contains the URL of the acme-dns server the Account was registered with
-	// (maybe empty for Account instances registered before this field was added).
+	// ServerURL contains the URL of the acme-dns server the account was registered with.
+	// (Maybe empty for account instances registered before this field was added).
 	ServerURL string `json:"server_url"`
 }

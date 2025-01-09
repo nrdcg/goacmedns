@@ -25,6 +25,6 @@ func newClientError(msg string, respCode int, respBody []byte) *ClientError {
 
 // Error collects all the ClientError fields into a single string.
 func (e ClientError) Error() string {
-	return fmt.Sprintf("%s : status code %d response: %s",
-		e.Message, e.HTTPStatus, string(e.Body))
+	return fmt.Sprintf("%d: %s, response: %s",
+		e.HTTPStatus, e.Message, string(e.Body))
 }
