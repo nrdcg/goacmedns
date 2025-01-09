@@ -5,7 +5,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/cpu/goacmedns"
+	"github.com/nrdcg/goacmedns"
 )
 
 func main() {

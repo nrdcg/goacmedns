@@ -1,3 +1,3 @@
-module github.com/cpu/goacmedns
+module github.com/nrdcg/goacmedns
 
 go 1.15

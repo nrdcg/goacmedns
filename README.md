@@ -3,10 +3,9 @@
 A Go library to handle [acme-dns](https://github.com/joohoi/acme-dns) client
 communication and persistent account storage.
 
-[![CI Status](https://github.com/cpu/goacmedns/workflows/Go/badge.svg)](https://github.com/cpu/goacmedns/actions?query=workflow%3AGo)
-[![Lint Status](https://github.com/cpu/goacmedns/workflows/golangci-lint/badge.svg)](https://github.com/cpu/goacmedns/actions?query=workflow%3Agolangci-lint)
-[![Coverage Status](https://coveralls.io/repos/github/cpu/goacmedns/badge.svg?branch=master)](https://coveralls.io/github/cpu/goacmedns?branch=master)
-[![Go Report Card](https://goreportcard.com/badge/github.com/cpu/goacmedns)](https://goreportcard.com/report/github.com/cpu/goacmedns)
+[![CI Status](https://github.com/nrdcg/goacmedns/workflows/Go/badge.svg)](https://github.com/nrdcg/goacmedns/actions?query=workflow%3AGo)
+[![Lint Status](https://github.com/nrdcg/goacmedns/workflows/golangci-lint/badge.svg)](https://github.com/nrdcg/goacmedns/actions?query=workflow%3Agolangci-lint)
+[![Go Report Card](https://goreportcard.com/badge/github.com/nrdcg/goacmedns)](https://goreportcard.com/report/github.com/nrdcg/goacmedns)
 
 You may also be interested in a Python equivalent,
 [pyacmedns](https://github.com/joohoi/pyacmedns/).
@@ -16,7 +15,7 @@ You may also be interested in a Python equivalent,
 Once you have [installed Go](https://golang.org/doc/install) 1.15+ you can
 install `goacmedns` with `go get`:
 
-     go get github.com/cpu/goacmedns/...
+     go get github.com/nrdcg/goacmedns/...
 
 # Usage
 
@@ -29,7 +28,7 @@ package main
 import (
 	"log"
 
-	"github.com/cpu/goacmedns"
+	"github.com/nrdcg/goacmedns"
 )
 
 const (
@@ -84,7 +83,7 @@ When using `goacmedns` with an ACME client hook it may be desirable to do the
 initial ACME-DNS account creation and CNAME delegation ahead of time  The
 `goacmedns-register` command line utility provides an easy way to do this:
 
-     go install github.com/cpu/goacmedns/...
+     go install github.com/nrdcg/goacmedns/...
      goacmedns-register -api http://10.0.0.1:4443 -domain example.com -allowFrom 192.168.100.1/24,1.2.3.4/32,2002:c0a8:2a00::0/40 -storage /tmp/example.storage.json
 
 This will register an account for `example.com` that is only usable from the
