@@ -19,9 +19,8 @@ const defaultTimeout = 30 * time.Second
 // ua is a custom user-agent identifier.
 const ua = "goacmedns"
 
-// userAgent returns a string that can be used as a HTTP request `User-Agent`
-// header. It includes the `ua` string alongside the OS and architecture of the
-// system.
+// userAgent returns a string that can be used as an HTTP request `User-Agent` header.
+// It includes the `ua` string alongside the OS and architecture of the system.
 func userAgent() string {
 	return fmt.Sprintf("%s (%s; %s)", ua, runtime.GOOS, runtime.GOARCH)
 }
@@ -35,21 +34,19 @@ type Update struct {
 	Txt       string `json:"txt"`
 }
 
-// Storage is an interface describing the required functions for an ACME DNS
-// Account storage mechanism.
+// Storage is an interface describing the required functions for an ACME DNS Account storage mechanism.
 type Storage interface {
-	// Save will persist the `Account` data that has been `Put` so far
+	// Save will persist the [Account] data that has been [Storage.Put] so far
 	Save(ctx context.Context) error
-	// Put will add an `Account` for the given domain to the storage. It may not
-	// be persisted until `Save` is called.
+	// Put will add an [Account] for the given domain to the storage.
+	// It may not be persisted until [Storage.Save] is called.
 	Put(ctx context.Context, domain string, account Account) error
-	// Fetch will retrieve an `Account` for the given domain from the storage. If
-	// the provided domain does not have an `Account` saved in the storage
-	// `ErrDomainNotFound` will be returned
+	// Fetch will retrieve an [Account] for the given domain from the storage.
+	// If the provided domain does not have an [Account] saved in the storage
+	// [storage.ErrDomainNotFound] will be returned
 	Fetch(ctx context.Context, domain string) (Account, error)
-	// FetchAll retrieves all the `Account` objects from the storage and
-	// returns a map that has domain names as its keys and `Account` objects
-	// as values.
+	// FetchAll retrieves all the [Account] objects from the storage and
+	// returns a map that has domain names as its keys and [Account] objects as values.
 	FetchAll(ctx context.Context) (map[string]Account, error)
 }
 
