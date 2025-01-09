@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
@@ -28,50 +29,27 @@ var testAccounts = map[string]goacmedns.Account{
 	},
 }
 
-var testLegacyAccount = map[string]goacmedns.Account{
-	"threeletter.agency": {
-		FullDomain: "threeletter.agency",
-		SubDomain:  "jobs.threeletter.agency",
-		Username:   "spooky.mulder",
-		Password:   "trustno1",
-	},
-}
-
-func TestNewFileStorage(t *testing.T) {
-	path := "foo.json"
+func TestNewFile_nonExistentFile(t *testing.T) {
+	path := filepath.Join("testdata", "non-existent.json")
 	mode := os.FileMode(0o600)
+
 	fs := NewFile(path, mode)
 
 	if fs.path != path {
-		t.Errorf("expected fs.path = %q, got %q", path, fs.path)
+		t.Fatalf("expected fs.path = %q, got %q", path, fs.path)
 	}
 
 	if fs.mode != mode {
-		t.Errorf("expected fs.mode = %d, got %d", mode, fs.mode)
+		t.Fatalf("expected fs.mode = %d, got %d", mode, fs.mode)
 	}
 
 	if fs.accounts == nil {
-		t.Error("expected accounts to be not-nil, was nil")
+		t.Fatalf("expected accounts to be not-nil, was nil")
 	}
+}
 
-	testData, err := json.Marshal(testAccounts)
-	if err != nil {
-		t.Fatalf("unexpected error marshaling testAccounts: %v", err)
-	}
-
-	f, err := os.CreateTemp(t.TempDir(), "acmedns.account")
-	if err != nil {
-		t.Errorf("unexpected error creating tempfile: %v", err)
-	}
-
-	defer func() { _ = f.Close() }()
-
-	_, err = f.Write(testData)
-	if err != nil {
-		t.Errorf("unexpected error writing to tempfile: %v", err)
-	}
-
-	fs = NewFile(f.Name(), mode)
+func TestNewFile_withAccounts(t *testing.T) {
+	fs := NewFile(filepath.Join("testdata", "accounts.json"), 0o600)
 
 	if fs.accounts == nil {
 		t.Fatalf("expected accounts to be not-nil, was nil")
@@ -82,32 +60,8 @@ func TestNewFileStorage(t *testing.T) {
 	}
 }
 
-func TestNewFileStorageWithLegacyData(t *testing.T) {
-	mode := os.FileMode(0o600)
-
-	var (
-		legacyAcct, testAcct goacmedns.Account
-		found                bool
-	)
-
-	testData, err := json.Marshal(testLegacyAccount)
-	if err != nil {
-		t.Fatalf("unexpected error marshaling testAccounts: %v", err)
-	}
-
-	f, err := os.CreateTemp(t.TempDir(), "legacy.account")
-	if err != nil {
-		t.Errorf("unexpected error creating tempfile: %v", err)
-	}
-
-	defer func() { _ = f.Close() }()
-
-	_, err = f.Write(testData)
-	if err != nil {
-		t.Errorf("unexpected error writing to tempfile: %v", err)
-	}
-
-	fs := NewFile(f.Name(), mode)
+func TestNewFile_withLegacyData(t *testing.T) {
+	fs := NewFile(filepath.Join("testdata", "legacy_account.json"), 0o600)
 
 	if fs.accounts == nil {
 		t.Fatalf("expected accounts to be not-nil, was nil")
@@ -116,6 +70,11 @@ func TestNewFileStorageWithLegacyData(t *testing.T) {
 	if len(fs.accounts) != 1 {
 		t.Fatalf("expected a single account in the map, got %d", len(fs.accounts))
 	}
+
+	var (
+		legacyAcct, testAcct goacmedns.Account
+		found                bool
+	)
 
 	if legacyAcct, found = fs.accounts["threeletter.agency"]; !found {
 		t.Fatalf("expected to find account but was unable to")
@@ -137,18 +96,12 @@ func TestNewFileStorageWithLegacyData(t *testing.T) {
 	}
 }
 
-func TestFileStorageSave(t *testing.T) {
+func TestFile_Save(t *testing.T) {
 	ctx := context.Background()
 
-	f, err := os.CreateTemp(t.TempDir(), "acmedns.account")
+	file := filepath.Join(t.TempDir(), "acmedns.account")
 
-	defer func() { _ = f.Close() }()
-
-	if err != nil {
-		t.Fatalf("Unable to create tempfile: %v", err)
-	}
-
-	storage := NewFile(f.Name(), 0o600)
+	storage := NewFile(file, 0o600)
 
 	for d, acct := range testAccounts {
 		err := storage.Put(ctx, d, acct)
@@ -157,21 +110,21 @@ func TestFileStorageSave(t *testing.T) {
 		}
 	}
 
-	err = storage.Save(ctx)
+	err := storage.Save(ctx)
 	if err != nil {
 		t.Fatalf("unexpected error saving storage: %v", err)
 	}
 
-	storedJSON, err := os.ReadFile(f.Name())
+	storedJSON, err := os.ReadFile(file)
 	if err != nil {
-		t.Fatalf("unexpected error reading stored JSON from %q: %v", f.Name(), err)
+		t.Fatalf("unexpected error reading stored JSON from %q: %v", file, err)
 	}
 
 	var restoredData map[string]goacmedns.Account
 
 	err = json.Unmarshal(storedJSON, &restoredData)
 	if err != nil {
-		t.Fatalf("unexpected error unmarshaling stored JSON from %q: %v", f.Name(), err)
+		t.Fatalf("unexpected error unmarshaling stored JSON from %q: %v", file, err)
 	}
 
 	if !reflect.DeepEqual(restoredData, testAccounts) {
@@ -180,7 +133,7 @@ func TestFileStorageSave(t *testing.T) {
 	}
 }
 
-func TestFileStorageFetch(t *testing.T) {
+func TestFile_Fetch(t *testing.T) {
 	ctx := context.Background()
 
 	storage := NewFile("", 0)
@@ -209,7 +162,7 @@ func TestFileStorageFetch(t *testing.T) {
 	}
 }
 
-func TestFileStorageFetchAll(t *testing.T) {
+func TestFile_FetchAll(t *testing.T) {
 	ctx := context.Background()
 
 	storage := NewFile("", 0)

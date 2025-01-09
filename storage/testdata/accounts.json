@@ -1,0 +1,16 @@
+{
+  "lettuceencrypt.org": {
+    "fulldomain": "lettuceencrypt.org",
+    "subdomain": "tossed.lettuceencrypt.org",
+    "username": "cpu",
+    "password": "hunter2",
+    "server_url": "https://auth.acme-dns.io"
+  },
+  "threeletter.agency": {
+    "fulldomain": "threeletter.agency",
+    "subdomain": "jobs.threeletter.agency",
+    "username": "spooky.mulder",
+    "password": "trustno1",
+    "server_url": "https://example.org"
+  }
+}
