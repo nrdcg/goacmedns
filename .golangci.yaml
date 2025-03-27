@@ -1,44 +1,47 @@
+version: "2"
+
+formatters:
+  enable:
+    - gci
+    - gofumpt
+
 linters:
-  enable-all: true
+  default: all
   disable:
-    - exportloopref # deprecated
-    - sqlclosecheck # not relevant (SQL)
-    - rowserrcheck # not relevant (SQL)
-    - dupl
     - depguard
-    - lll
-    - prealloc
-    - varnamelen
+    - dupl
     - exhaustive
     - exhaustruct
-    - paralleltest
-    - testpackage
+    - lll
     - mnd
+    - paralleltest
+    - prealloc
+    - rowserrcheck # not relevant (SQL)
+    - sqlclosecheck # not relevant (SQL)
+    - testpackage
+    - varnamelen
 
-linters-settings:
-  gocyclo:
-    min-complexity: 25
-  misspell:
-    locale: "US"
-  tagliatelle:
-    case:
-      rules:
-        "json": "snake"
-  nolintlint:
-    require-explanation: true
-    require-specific: true
+  settings:
+    gocyclo:
+      min-complexity: 25
+    misspell:
+      locale: US
+    nolintlint:
+      require-explanation: true
+      require-specific: true
+    tagliatelle:
+      case:
+        rules:
+          json: snake
 
-issues:
-  exclude-rules:
-    - path: (.*)_test.go
-      linters:
-        - gochecknoglobals
-        - funlen
-        - cyclop
-
-output:
-  show-stats: true
-  sort-results: true
-  sort-order:
-    - linter
-    - file
+  exclusions:
+    presets:
+      - comments
+      - common-false-positives
+      - std-error-handling
+    rules:
+      - linters:
+          - cyclop
+          - funlen
+          - gochecknoglobals
+        path: (.*)_test.go

@@ -3,9 +3,10 @@ name: Go
 on:
   push:
     branches:
-      - master
       - main
   pull_request:
+    branches:
+      - main
 
 jobs:
 
@@ -36,6 +37,6 @@ jobs:
           go-version: stable
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
-          version: v1.63.4
+          version: v2.0
