@@ -27,7 +27,7 @@ type File struct {
 
 // NewFile returns a [goacmedns.Storage] implementation backed by JSON content saved into the provided `path` on disk.
 // The file at `path` will be created if required.
-// When creating a new file the provided `mode` is used to set the permissions.
+// When creating a new file, the provided `mode` is used to set the permissions.
 func NewFile(path string, mode os.FileMode) *File {
 	f := &File{
 		path:     path,
@@ -35,9 +35,11 @@ func NewFile(path string, mode os.FileMode) *File {
 		accounts: make(map[string]goacmedns.Account),
 	}
 
-	// Opportunistically try to load the account data. Return an empty account if any errors occur.
-	if jsonData, err := os.ReadFile(path); err == nil {
-		if err := json.Unmarshal(jsonData, &f.accounts); err != nil {
+	// Opportunistically, try to load the account data. Return an empty account if any errors occur.
+	jsonData, err := os.ReadFile(path)
+	if err == nil {
+		err = json.Unmarshal(jsonData, &f.accounts)
+		if err != nil {
 			return f
 		}
 	}
@@ -53,7 +55,8 @@ func (f File) Save(_ context.Context) error {
 		return fmt.Errorf("fFailed to marshal account: %w", err)
 	}
 
-	if err = os.WriteFile(f.path, serialized, f.mode); err != nil {
+	err = os.WriteFile(f.path, serialized, f.mode)
+	if err != nil {
 		return fmt.Errorf("failed to write storage file: %w", err)
 	}
 

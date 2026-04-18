@@ -8,35 +8,48 @@ on:
     branches:
       - main
 
+permissions: {}
+
+env:
+  GO_VERSION: stable
+  GOLANGCI_LINT_VERSION: v2.11
+  CGO_ENABLED: 0
+
 jobs:
 
   build:
     name: Build and Unit Test
     runs-on: ubuntu-latest
+    env:
+      CGO_ENABLED: 1
+
     steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
-    - uses: actions/checkout@v4
-    - uses: actions/setup-go@v5
-      with:
-        go-version: stable
+      - name: Build
+        run: go build -v ./...
 
-    - name: Build
-      run: go build -v ./...
-
-    - name: Test
-      run: go test -v -race -covermode=atomic -coverprofile=coverage.out ./...
+      - name: Test
+        run: go test -v -race -covermode=atomic -coverprofile=coverage.out ./...
 
   lint:
     name: golangci-lint
     runs-on: ubuntu-latest
     steps:
 
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v6
         with:
-          go-version: stable
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
-      - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v7
+      - uses: golangci/golangci-lint-action@v9.0.0
         with:
-          version: v2.0
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          install-only: true

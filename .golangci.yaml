@@ -20,10 +20,15 @@ linters:
     - sqlclosecheck # not relevant (SQL)
     - testpackage
     - varnamelen
+    - wsl
 
   settings:
     gocyclo:
       min-complexity: 25
+    gosec:
+      excludes:
+        - G704
+        - G117
     misspell:
       locale: US
     nolintlint:

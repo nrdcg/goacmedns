@@ -17,6 +17,7 @@ func main() {
 	domain := flag.String("domain", "", "Domain to register an account for")
 	storagePath := flag.String("storage", "", "Path to the JSON storage file to create/update")
 	allowFrom := flag.String("allowFrom", "", "List of comma separated CIDR notation networks the account is allowed to be used from")
+
 	flag.Parse()
 
 	if *apiBase == "" {
